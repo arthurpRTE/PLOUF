@@ -1,6 +1,7 @@
 from cdo import Cdo
 import xarray as xr
 import numpy as np
+import sys
 
 cdo = Cdo()
 
@@ -20,6 +21,7 @@ def mergeAll(year) :
     ws10_file = "/homedata/apaolini/PECD4.2/HIST/CLIM/10WS/BIAS/H_ERA5_ECMW_T639_WS-_0010m_Pecd_025d_S195001010000_E195012312300_INS_MAP_01h_NA-_mbc_org_NA_NA---_NA---_NA---_PECD4.2_fv1.nc"
     t2m_file = ""
     altitude_file = "/homedata/apaolini/PECD4.2/MASKS/altitude.nc"
+    height_of_variables_file = "/homedata/apaolini/PECD4.2/height_of_variables.nc"
     forcing_tmp = ""
     forcing_orchidee = ""
 
@@ -49,6 +51,9 @@ def mergeAll(year) :
     tp_file_temp = f"tp.{year}_temp.nc"
     rain_file_out = f"rain.{year}_temp.nc"
     sf_file_out = f"sf.{year}_temp.nc"
+    sp_file_out = f"sp.{year}_temp.nc"
+    t2m_file_out = f"t2m.{year}_temp.nc"
+    d2m_file_out = f"d2m.{year}_temp.nc"
     q_file_out = f"q.{year}_temp.nc"
     forcing_tmp = f"forcing.{year}_temp.nc"
     forcing_orchidee = f"forcing_orchidee.{year}.nc"
@@ -63,17 +68,19 @@ def mergeAll(year) :
     print(sf_file)
     print(sf_file_out)
     print(sp_file)
+    print(sp_file_out)
     print(d2m_file)
+    print(d2m_file_out)
     print(q_file_out)
     print(ws10_file)
     print(t2m_file)
+    print(t2m_file_out)
     print(altitude_file)
     print(forcing_tmp)
     print(forcing_orchidee)
 
 
-
-    ## genere un mergefile pour toutes les variables en forcast
+    # genere un mergefile pour toutes les variables en forcast
     print(f"grouping ssrd for year {year}...")
     cdo.expr(
         'SWdown=ssrd/3600.',
@@ -106,52 +113,63 @@ def mergeAll(year) :
         output = rain_file_out
     )
     print("rain - done")
-    
+    print(f"grouping sp for year {year}...")
+    cdo.expr(
+        'PSurf=sp',
+        input = '-mergetime ' + sp_file,
+        output = sp_file_out
+    )
+    print("sp - done") 
+    print(f"grouping d2m for year {year}...")
+    cdo.expr(
+        "'d2m=d2m - 273.16'",
+        input = '-mergetime ' + d2m_file,
+        output = d2m_file_out
+    )
+    print("d2m - done") 
+    print(f"grouping t2m for year {year}...")
+    cdo.expr(
+        'TAir=t2m',
+        input = '-mergetime ' + t2m_file,
+        output = t2m_file_out
+    )
+    print("t2m - done") 
     ## calcul de l'humidité spécifique de l'air
-    
+        
     print(f"computing sh for year {year}...")
     cdo.expr(
-        "'T = d2m - 273.16;'"
-        "'e = 611.21*exp(17.502*T/(T + 240.97));'"
-        "'Qair = 0.62198*e/(sp - (1 - 0.62198)*e)'",
-        input = "-merge " + sp_file + " " + d2m_file,
+        "'e = 611.21*exp(17.502*d2m/(d2m + 240.97));'"
+        "'Qair = 0.62198*e/(PSurf - (1 - 0.62198)*e)'",
+        input = "-merge " + sp_file_out + " " + d2m_file_out,
         output = q_file_out
     )
     print("sh - done")
-    ## création du fichier de forçage orchidee
-    
+        ## création du fichier de forçage orchidee
+        
     print("grouping...")
     cdo.remapnn(
         ws10_file,
-        input = "-chname,t2m,Tair,sp,PSurf -sellonlatbox,-180,180,-90,90 -merge " +
-        sp_file + " " + 
+        input = "-sellonlatbox,-180,180,-90,90 -merge " +
+        sp_file_out + " " + 
         strd_file_out + " " + 
-        t2m_file + " " + 
+        t2m_file_out + " " + 
         q_file_out + " " + 
         ssrd_file_out + " " +
         rain_file_out + " " +
         sf_file_out + " " +
-        altitude_file,
+        altitude_file + " " +
+        height_of_variables_file,
         output = forcing_tmp
 
     )
 
     print("setting attributes...")
     cdo.setattribute(
-        'PSurf@cell_methods="time: instantaneous",' 
-        'LWdown@cell_methods="time: mean(end)",' 
-        'LWdown@units="W m-2",' 
-        'SWdown@cell_methods="time: mean(end)",' 
-        'SWdown@units="W m-2",' 
-        'Tair@cell_methods="time: instantaneous",' 
-        'Qair@cell_methods="time: instantaneous",' 
-        'Wind@cell_methods="time: instantaneous",' 
-        'Rainf@cell_methods="time: mean(end)",'
-        'Snowf@cell_methods="time: mean(end)",',
+        'FILE=/homedata/apaolini/PECD4.2/forcing_attributes.txt',
         input = forcing_tmp,
         output = forcing_orchidee
     )
     print(f"forcing generated for year {year}")
 
 
-mergeAll(1950)
+mergeAll(int(sys.argv[1]))
