@@ -123,7 +123,7 @@ def mergeAll(year) :
     print("grouping...")
     cdo.remapnn(
         ws10_file,
-        input = "-chname,t2m,Tair,sp,PSurf -setlon180 -merge " +
+        input = "-chname,t2m,Tair,sp,PSurf -sellonlatbox,-180,180,-90,90 -merge " +
         sp_file + " " + 
         strd_file_out + " " + 
         t2m_file + " " + 
